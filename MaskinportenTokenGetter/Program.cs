@@ -10,13 +10,39 @@ using Newtonsoft.Json.Linq;
 var builder = new ConfigurationBuilder()
     .AddUserSecrets<Program>();
 
+var argList = args.ToList();
+var envArgIndex = argList.FindIndex(x => x == "--env");
+
+
 var tokenType = args.First();
 var scopes = args.Skip(1).ToArray();
 
+// Remove --env and the environment argument
+scopes = scopes.Where(x => x != "--env" && x != args[envArgIndex + 1]).ToArray();
+
 var config = builder.Build();
 
-var encodedJwk = config.GetValue<string>("EncodedJwk");
-var clientId = config.GetValue<string>("ClientId");
+var environment = "dev";
+if (envArgIndex != -1)
+{
+    environment = argList[envArgIndex + 1];
+}
+
+string? encodedJwk = null;
+string? clientId = null;
+
+if (environment == "prod")
+{
+    encodedJwk = config.GetValue<string>("ProdEncodedJwk");
+    clientId = config.GetValue<string>("ProdClientId");
+}
+else
+{
+    encodedJwk = config.GetValue<string>("EncodedJwk");
+    clientId = config.GetValue<string>("ClientId");
+}
+
+
 var scope = string.Join(' ', scopes);
 var jti = Guid.NewGuid().ToString();
 
@@ -38,9 +64,13 @@ rsa.ImportParameters(new RSAParameters
 
 var key = new RsaSecurityKey(rsa) { KeyId = jwk.Kid };
 
+var aud = environment == "prod"
+    ? "https://maskinporten.no/"
+    : "https://test.maskinporten.no/";
+
 var claims = new[]
 {
-    new Claim("aud", "https://test.maskinporten.no/"),
+    new Claim("aud", aud),
     new Claim("iss", clientId!),
     new Claim("scope", scope),
     new Claim("exp", DateTimeOffset.UtcNow.AddMinutes(2).ToUnixTimeSeconds().ToString()),
@@ -64,7 +94,11 @@ using var httpClient = new HttpClient();
 var httpRequest = new HttpRequestMessage();
 
 httpRequest.Method = HttpMethod.Post;
-httpRequest.RequestUri = new Uri("https://test.maskinporten.no/token");
+var requestUri = environment == "prod"
+    ? "https://maskinporten.no/token"
+    : "https://test.maskinporten.no/token";
+
+httpRequest.RequestUri = new Uri(requestUri);
 httpRequest.Content = new FormUrlEncodedContent(new Dictionary<string, string>
 {
     { "grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer" },
@@ -87,7 +121,12 @@ if (tokenType == "maskinporten")
 var httpRequest2 = new HttpRequestMessage();
 
 httpRequest2.Method = HttpMethod.Get;
-httpRequest2.RequestUri = new Uri("https://platform.tt02.altinn.no/authentication/api/v1/exchange/maskinporten?test=true");
+
+var requestUri2 = environment == "prod"
+    ? "https://platform.altinn.no/authentication/api/v1/exchange/maskinporten"
+    : "https://platform.tt02.altinn.no/authentication/api/v1/exchange/maskinporten";
+
+httpRequest2.RequestUri = new Uri(requestUri2);
 httpRequest2.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
 var response2 = await httpClient.SendAsync(httpRequest2);
