@@ -55,21 +55,9 @@ var addCredentialsCommand = new Command("add");
 
 var addCredentialsNameArgument = new Argument<string>("credential-set name");
 
-var addCredentialsClientIdOption = new Option<Guid>("--client-id")
-{
-    IsRequired = true
-};
-
-var addCredentialsEncodedJwkOption = new Option<string>("--encoded-jwk")
-{
-    IsRequired = true
-};
-
 addCredentialsCommand.AddArgument(addCredentialsNameArgument);
-addCredentialsCommand.AddOption(addCredentialsClientIdOption);
-addCredentialsCommand.AddOption(addCredentialsEncodedJwkOption);
 
-addCredentialsCommand.SetHandler(HandleAddCredentialsCommand, addCredentialsNameArgument, addCredentialsClientIdOption, addCredentialsEncodedJwkOption);
+addCredentialsCommand.SetHandler(HandleAddCredentialsCommand, addCredentialsNameArgument);
 
 credentialsCommand.AddCommand(addCredentialsCommand);
 
@@ -198,33 +186,35 @@ void HandleTokenCommand(string tokenType, string[] scopes, string environment, s
     Console.WriteLine(responseContent2);
 }
 
-void HandleAddCredentialsCommand(string name, Guid clientId, string encodedJwk)
+void HandleAddCredentialsCommand(string name)
 {
-    // Validate
     ArgumentException.ThrowIfNullOrWhiteSpace(name);
+    
+    Console.WriteLine("Enter client id:");
+    
+    if (!Guid.TryParse(Console.ReadLine(), out var clientId))
+        throw new ArgumentException("Failed to parse client id", nameof(clientId));
+    
+    Console.WriteLine("Enter encoded JWK:");
+    var encodedJwk = ReadSecret();
 
     if (clientId == Guid.Empty)
         throw new ArgumentException("clientId must be an initialized guid.", nameof(clientId));
     
     ArgumentException.ThrowIfNullOrWhiteSpace(encodedJwk);
     
-    // Do
     var success = credentialsStore.TryAdd(name, clientId, encodedJwk);
 
-    // Report
     if (!success)
         Console.WriteLine("Failed to set credentials");
 }
 
 void HandleRemoveCredentialsCommand(string name)
 {
-    // Validate
     ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
-    // Do
     var success = credentialsStore.Remove(name);
     
-    // Report
     if (!success)
         Console.WriteLine("Failed to remove credentials");
 }
@@ -243,6 +233,32 @@ void HandleListCredentialsCommand()
         if (i != credentialSets.Length - 1)
             Console.WriteLine("-------------------");
     }
+}
+
+static string ReadSecret()
+{
+    var secretBuilder = new StringBuilder();
+    while (true)
+    {
+        var keyInfo = Console.ReadKey(intercept: true);
+        if (keyInfo.Key == ConsoleKey.Enter)
+        {
+            break;
+        }
+
+        if (keyInfo.Key == ConsoleKey.Backspace && secretBuilder.Length > 0)
+        {
+            secretBuilder.Length--;
+            Console.Write("\b \b");
+        }
+        else if (!char.IsControl(keyInfo.KeyChar))
+        {
+            secretBuilder.Append(keyInfo.KeyChar);
+            Console.Write('*');
+        }
+    }
+
+    return secretBuilder.ToString();
 }
 
 public class CredentialsStore
