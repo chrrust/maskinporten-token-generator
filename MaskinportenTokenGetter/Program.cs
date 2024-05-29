@@ -1,6 +1,7 @@
 ﻿using System.CommandLine;
 using System.IdentityModel.Tokens.Jwt;
 using System.Net.Http.Headers;
+using System.Runtime.InteropServices;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
@@ -264,31 +265,34 @@ static string ReadSecret()
 public class CredentialsStore
 {
     private readonly List<CredentialSet> _store = new();
-    
+    private const string CredentialsFileName = "unicorns_and_rainbows.magic"; 
     public bool HasPendingChanges { get; private set; }
     
     public void Load()
     {
-        if (File.Exists("credentials.json") == false)
-            File.WriteAllText("credentials.json", "[]");
+        if (!File.Exists(CredentialsFileName))
+            return;
+
+        using var fileStream = new FileStream(CredentialsFileName, FileMode.Open);
+        byte[] decryptedData = DecryptDataFromStream(fileStream);
         
-        var json = File.ReadAllText("credentials.json");
-        if (string.IsNullOrWhiteSpace(json))
-            throw new Exception("Failed to read credentials.json");
+        fileStream.Close();
         
-        var credentialSets = JsonSerializer.Deserialize<List<CredentialSet>>(json);
+        var credentialSets = JsonSerializer.Deserialize<List<CredentialSet>>(decryptedData);
+
         if (credentialSets is null)
-            throw new Exception("Failed to deserialize credentials.json");
+            throw new Exception("Failed at deserializing credentials");
         
         _store.Clear();
-        
         _store.AddRange(credentialSets);
     }
-    
+
     public void Save()
     {
-        var json = JsonSerializer.Serialize(_store);
-        File.WriteAllText("credentials.json", json);
+        var data = JsonSerializer.SerializeToUtf8Bytes(_store);
+        using var fileStream = new FileStream(CredentialsFileName, FileMode.OpenOrCreate);
+        EncryptDataToStream(data, fileStream);
+        fileStream.Close();
     }
     
     public bool TryAdd(string name, Guid clientId, string encodedJwk)
@@ -314,6 +318,65 @@ public class CredentialsStore
     public CredentialSet? Get(string name)
     {
         return _store.FirstOrDefault(set => set.Name == name);
+    }
+
+    private static byte[] DecryptDataFromStream(Stream s)
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            return DecryptOnWindows(s);
+
+        throw new InvalidOperationException("You OS is not supported");
+    }
+
+    private static byte[] DecryptOnWindows(Stream s)
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            throw new InvalidOperationException("You OS is not supported");
+        
+        ArgumentNullException.ThrowIfNull(s);
+
+        var inBuffer = new byte[s.Length];
+
+        var length = inBuffer.Length;
+
+        if (!s.CanRead)
+            throw new IOException("Could not read the stream.");
+        
+        var readBytesCount = s.Read(inBuffer, 0, length);
+
+        if (readBytesCount != length)
+            throw new Exception("Failed to read the stream");
+            
+        return ProtectedData.Unprotect(inBuffer, null, DataProtectionScope.CurrentUser);
+    }
+
+    private static void EncryptDataToStream(byte[] buffer, Stream s)
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            EncryptOnWindows(buffer, s);
+        
+        throw new InvalidOperationException("You OS is not supported");
+    }
+
+    private static void EncryptOnWindows(byte[] buffer, Stream s)
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            throw new InvalidOperationException("You OS is not supported");
+        
+        ArgumentNullException.ThrowIfNull(buffer);
+        ArgumentNullException.ThrowIfNull(s);
+        
+        if (buffer.Length <= 0)
+            throw new ArgumentException("The buffer length was 0.", nameof(buffer));
+
+        // Encrypt the data and store the result in a new byte array. The original data remains unchanged.
+        var encryptedData = ProtectedData.Protect(buffer, null, DataProtectionScope.CurrentUser);
+        
+        if (!s.CanWrite) 
+            return;
+
+        // Write the encrypted data to a stream.
+        s.Write(encryptedData, 0, encryptedData.Length);
     }
 }
 
