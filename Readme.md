@@ -4,6 +4,8 @@ This is a simple tool to get a Maskinporten token or Altinn token.
 
 ## Installation MacOS
 
+Use the install script for MacOS named `install_mac.sh` to install the tool. Below are some manual steps to install the tool if that is preferred.
+
 _For ARM 64_
 ```bash
 dotnet publish -c Release -r osx-arm64 --self-contained --output ~/.token-getter
@@ -25,6 +27,8 @@ chmod +x /usr/local/bin/token-getter
 ```
 
 ## Installation Windows
+
+Use the install script for windows named `install_windows.bat` to install the tool. Below are some manual steps to install the tool if that is preferred.
 
 Terminal must be run as administrator for the following steps
 
