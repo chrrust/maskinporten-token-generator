@@ -11,14 +11,14 @@ public static class Extensions
 
         // Setup "credentials add" command
         var addCredentialsCommand = new Command("add");
-        var addCredentialsNameArgument = new Argument<string>("credential-set name");
+        var addCredentialsNameArgument = new Argument<string>("name");
         addCredentialsCommand.AddArgument(addCredentialsNameArgument);
         addCredentialsCommand.SetHandler(AddCredentialsCommand.Handle, addCredentialsNameArgument);
         credentialsCommand.AddCommand(addCredentialsCommand);
 
         // Setup "credentials remove" command
         var removeCredentialsCommand = new Command("remove");
-        var removeCredentialsNameArgument = new Argument<string>("credential-set name");
+        var removeCredentialsNameArgument = new Argument<string>("name");
         removeCredentialsCommand.AddArgument(removeCredentialsNameArgument);
         removeCredentialsCommand.SetHandler(RemoveCredentialsCommand.Handle, removeCredentialsNameArgument);
         credentialsCommand.AddCommand(removeCredentialsCommand);

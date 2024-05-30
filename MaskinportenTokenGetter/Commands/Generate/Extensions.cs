@@ -8,35 +8,40 @@ public static class Extensions
     {
         var generateCommand = new Command("generate");
 
+        // Add scopes option
         var scopesOption = new Option<string[]>("--scopes")
         {
             AllowMultipleArgumentsPerToken = true
         };
+        scopesOption.AddAlias("-s");
+        generateCommand.AddOption(scopesOption);
 
+        // Add token type options
         var tokenTypeOption = new Option<string>("--type")
         {
             IsRequired = true
         };
+        tokenTypeOption.AddAlias("-t");
+        tokenTypeOption.FromAmong("maskinporten", "altinn");
+        generateCommand.AddOption(tokenTypeOption);
 
+        // Add credentials option
         var credentialsOption = new Option<string>("--credentials")
         {
             IsRequired = true
         };
+        credentialsOption.AddAlias("-c");
+        generateCommand.AddOption(credentialsOption);
 
-        tokenTypeOption.FromAmong("maskinporten", "altinn");
-
+        // Add environment option
         var environmentOption = new Option<string>("--environment")
         {
             IsRequired = true
         };
-
+        environmentOption.AddAlias("-e");
         environmentOption.FromAmong("test", "prod");
-
-        generateCommand.AddOption(scopesOption);
-        generateCommand.AddOption(tokenTypeOption);
         generateCommand.AddOption(environmentOption);
-        generateCommand.AddOption(credentialsOption);
-
+        
         generateCommand.SetHandler(GenerateCommand.Handle, tokenTypeOption, scopesOption, environmentOption, credentialsOption);
         
         parentCommand.AddCommand(generateCommand);
