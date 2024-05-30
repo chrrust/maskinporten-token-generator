@@ -4,13 +4,13 @@ namespace MaskinportenTokenGetter;
 
 public record CredentialSet(string Name, Guid ClientId, string EncodedJwk);
 
-public class CredentialsStore
+public static class CredentialsStore
 {
-    private readonly List<CredentialSet> _store = new();
+    private static readonly List<CredentialSet> Store = new();
     private const string CredentialsFileName = "unicorns_and_rainbows.magic"; 
-    public bool HasPendingChanges { get; private set; }
+    public static bool HasPendingChanges { get; private set; }
     
-    public void Load()
+    public static void Load()
     {
         if (!File.Exists(CredentialsFileName))
             return;
@@ -25,41 +25,41 @@ public class CredentialsStore
         if (credentialSets is null)
             throw new Exception("Failed at deserializing credentials");
         
-        _store.Clear();
-        _store.AddRange(credentialSets);
+        Store.Clear();
+        Store.AddRange(credentialSets);
     }
 
-    public void Save()
+    public static void Save()
     {
-        var data = JsonSerializer.SerializeToUtf8Bytes(_store);
+        var data = JsonSerializer.SerializeToUtf8Bytes(Store);
         using var fileStream = new FileStream(CredentialsFileName, FileMode.OpenOrCreate);
         Encryptor.EncryptDataToStream(data, fileStream);
         fileStream.Close();
     }
     
-    public bool TryAdd(string name, Guid clientId, string encodedJwk)
+    public static bool TryAdd(string name, Guid clientId, string encodedJwk)
     {
-        if (_store.Any(set => set.Name == name))
+        if (Store.Any(set => set.Name == name))
             return false;
         
-        _store.Add(new CredentialSet(name, clientId, encodedJwk));
+        Store.Add(new CredentialSet(name, clientId, encodedJwk));
         HasPendingChanges = true;
         return true;
     }
 
-    public bool Remove(string name)
+    public static bool Remove(string name)
     {
-        var success = _store.RemoveAll(set => set.Name == name) > 0;
+        var success = Store.RemoveAll(set => set.Name == name) > 0;
         if (success)
             HasPendingChanges = true;
         return success;
     }
 
-    public List<CredentialSet> GetAll() => _store;
+    public static List<CredentialSet> GetAll() => Store;
 
-    public CredentialSet? Get(string name)
+    public static CredentialSet? Get(string name)
     {
-        return _store.FirstOrDefault(set => set.Name == name);
+        return Store.FirstOrDefault(set => set.Name == name);
     }
 
 }
