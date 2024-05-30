@@ -52,3 +52,31 @@ xcopy .\bin\Release\net8.0\win-x86 "C:\Program Files\token-getter" /E /I /H
 setx /M PATH "%PATH%;C:\Program Files\token-getter"
 ```
 
+# Usage
+
+Check the help for the tool by running the following command
+```bash
+token-getter --help
+```
+
+## Generate a token
+
+To generate a token, run the following command
+```bash
+token-getter generate -c <credentials-set> -s <scopes> -t <type> -e <environment>
+```
+
+Use `token-getter generate --help` to get more information about the command.
+
+Example:
+```bash
+token-getter generate -c tt02_ae_so -t altinn -e test -s altinn:serviceowner altinn:events.publish
+```
+
+## Credentials
+
+The tool provides a way of setting up multiple sets of credentials through the commands:
+- `token-getter credentials add <name>`
+- `token-getter credentials list`
+- `token-getter credentials remove <name>`
+
