@@ -23,3 +23,28 @@ sudo ln -s ~/.token-getter/token-getter /usr/local/bin/token-getter
 ```bash
 chmod +x /usr/local/bin/token-getter
 ```
+
+## Installation Windows
+
+Terminal must be run as administrator for the following steps
+
+```bash
+mkdir "C:\Program Files\token-getter"
+```
+
+_For x64_
+```bash
+dotnet publish -c Release -r win-x64 --self-contained
+xcopy .\bin\Release\net8.0\win-x64 "C:\Program Files\token-getter" /E /I /H
+```
+
+_For x86_
+```bash
+dotnet publish -c Release -r win-x86 --self-contained
+xcopy .\bin\Release\net8.0\win-x86 "C:\Program Files\token-getter" /E /I /H
+```
+
+```bash
+setx /M PATH "%PATH%;C:\Program Files\token-getter"
+```
+
