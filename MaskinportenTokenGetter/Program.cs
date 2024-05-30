@@ -3,12 +3,10 @@ using System.CommandLine.Builder;
 using System.CommandLine.Parsing;
 using System.IdentityModel.Tokens.Jwt;
 using System.Net.Http.Headers;
-using System.Runtime.InteropServices;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
-using Microsoft.AspNetCore.DataProtection;
+using MaskinportenTokenGetter;
 using Microsoft.IdentityModel.Tokens;
 using Newtonsoft.Json.Linq;
 
@@ -206,7 +204,7 @@ void HandleAddCredentialsCommand(string name)
         throw new ArgumentException("Failed to parse client id", nameof(clientId));
     
     Console.WriteLine("Enter encoded JWK:");
-    var encodedJwk = ReadSecret();
+    var encodedJwk = SecretUtils.ReadSecret();
 
     if (clientId == Guid.Empty)
         throw new ArgumentException("clientId must be an initialized guid.", nameof(clientId));
@@ -244,186 +242,3 @@ void HandleListCredentialsCommand()
             Console.WriteLine("-------------------");
     }
 }
-
-static string ReadSecret()
-{
-    var secretBuilder = new StringBuilder();
-    while (true)
-    {
-        var keyInfo = Console.ReadKey(intercept: true);
-        if (keyInfo.Key == ConsoleKey.Enter)
-        {
-            break;
-        }
-
-        if (keyInfo.Key == ConsoleKey.Backspace && secretBuilder.Length > 0)
-        {
-            secretBuilder.Length--;
-            Console.Write("\b \b");
-        }
-        else if (!char.IsControl(keyInfo.KeyChar))
-        {
-            secretBuilder.Append(keyInfo.KeyChar);
-            Console.Write('*');
-        }
-    }
-
-    return secretBuilder.ToString();
-}
-
-public class CredentialsStore
-{
-    private readonly List<CredentialSet> _store = new();
-    private const string CredentialsFileName = "unicorns_and_rainbows.magic"; 
-    public bool HasPendingChanges { get; private set; }
-    
-    public void Load()
-    {
-        if (!File.Exists(CredentialsFileName))
-            return;
-
-        using var fileStream = new FileStream(CredentialsFileName, FileMode.Open);
-        byte[] decryptedData = DecryptDataFromStream(fileStream);
-        
-        fileStream.Close();
-        
-        var credentialSets = JsonSerializer.Deserialize<List<CredentialSet>>(decryptedData);
-
-        if (credentialSets is null)
-            throw new Exception("Failed at deserializing credentials");
-        
-        _store.Clear();
-        _store.AddRange(credentialSets);
-    }
-
-    public void Save()
-    {
-        var data = JsonSerializer.SerializeToUtf8Bytes(_store);
-        using var fileStream = new FileStream(CredentialsFileName, FileMode.OpenOrCreate);
-        EncryptDataToStream(data, fileStream);
-        fileStream.Close();
-    }
-    
-    public bool TryAdd(string name, Guid clientId, string encodedJwk)
-    {
-        if (_store.Any(set => set.Name == name))
-            return false;
-        
-        _store.Add(new CredentialSet(name, clientId, encodedJwk));
-        HasPendingChanges = true;
-        return true;
-    }
-
-    public bool Remove(string name)
-    {
-        var success = _store.RemoveAll(set => set.Name == name) > 0;
-        if (success)
-            HasPendingChanges = true;
-        return success;
-    }
-
-    public List<CredentialSet> GetAll() => _store;
-
-    public CredentialSet? Get(string name)
-    {
-        return _store.FirstOrDefault(set => set.Name == name);
-    }
-
-    private static byte[] DecryptDataFromStream(Stream s)
-    {
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            return DecryptOnWindows(s);
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-            return DecryptOnOsx(s);
-        
-        throw new InvalidOperationException("You OS is not supported");
-    }
-
-    private static byte[] DecryptOnOsx(Stream stream)
-    {
-        var dataProtectorProvider = DataProtectionProvider.Create("MaskinportenTokenGetter");
-
-        var dataProtector = dataProtectorProvider.CreateProtector("MacOS");
-
-        var inBuffer = new byte[stream.Length];
-
-        var length = inBuffer.Length;
-
-        if (!stream.CanRead)
-            throw new IOException("Could not read the stream.");
-        
-        var readBytesCount = stream.Read(inBuffer, 0, length);
-
-        if (readBytesCount != length)
-            throw new Exception("Failed to read the stream");
-
-        return dataProtector.Unprotect(inBuffer);
-    }
-
-    private static byte[] DecryptOnWindows(Stream s)
-    {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            throw new InvalidOperationException("You OS is not supported");
-        
-        ArgumentNullException.ThrowIfNull(s);
-
-        var inBuffer = new byte[s.Length];
-
-        var length = inBuffer.Length;
-
-        if (!s.CanRead)
-            throw new IOException("Could not read the stream.");
-        
-        var readBytesCount = s.Read(inBuffer, 0, length);
-
-        if (readBytesCount != length)
-            throw new Exception("Failed to read the stream");
-            
-        return ProtectedData.Unprotect(inBuffer, null, DataProtectionScope.CurrentUser);
-    }
-
-    private static void EncryptDataToStream(byte[] buffer, Stream s)
-    {
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            EncryptOnWindows(buffer, s);
-        else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-            EncryptOnOsx(buffer, s);
-        else
-            throw new InvalidOperationException("You OS is not supported");
-    }
-
-    private static void EncryptOnOsx(byte[] buffer, Stream stream)
-    {
-        var dataProtectorProvider = DataProtectionProvider.Create("MaskinportenTokenGetter");
-        var dataProtector = dataProtectorProvider.CreateProtector("MacOS");
-
-
-        var encrypted = dataProtector.Protect(buffer);
-        stream.Write(encrypted, 0, encrypted.Length);
-    }
-
-    private static void EncryptOnWindows(byte[] buffer, Stream s)
-    {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            throw new InvalidOperationException("You OS is not supported");
-        
-        ArgumentNullException.ThrowIfNull(buffer);
-        ArgumentNullException.ThrowIfNull(s);
-        
-        if (buffer.Length <= 0)
-            throw new ArgumentException("The buffer length was 0.", nameof(buffer));
-
-        // Encrypt the data and store the result in a new byte array. The original data remains unchanged.
-        var encryptedData = ProtectedData.Protect(buffer, null, DataProtectionScope.CurrentUser);
-        
-        if (!s.CanWrite) 
-            return;
-
-        // Write the encrypted data to a stream.
-        s.Write(encryptedData, 0, encryptedData.Length);
-    }
-}
-
-public record CredentialSet(string Name, Guid ClientId, string EncodedJwk);
-
-
