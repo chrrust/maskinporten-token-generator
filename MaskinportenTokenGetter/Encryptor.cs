@@ -1,29 +1,33 @@
-using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using Microsoft.AspNetCore.DataProtection;
 
 namespace MaskinportenTokenGetter;
 
+public static class ApplicationData
+{
+    public const string Name = "MaskinportenTokenGetter";
+}
 public static class Encryptor
 {
-    private const string ApplicationName = "MaskinportenTokenGetter";
     private const string MacOsProtectionPurpose = "Store credentials for Maskinporten";
     
     public static void EncryptDataToStream(byte[] buffer, Stream s)
     {
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        if (OperatingSystem.IsWindows())
             EncryptOnWindows(buffer, s);
-        else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+        else if (OperatingSystem.IsMacOS())
             EncryptOnOsx(buffer, s);
         else
-            throw new InvalidOperationException("You OS is not supported");
+            throw new PlatformNotSupportedException("You OS is not supported");
     }
 
     private static void EncryptOnOsx(byte[] buffer, Stream stream)
     {
-        var dataProtectorProvider = DataProtectionProvider.Create(ApplicationName);
+        if (!OperatingSystem.IsMacOS())
+            throw new PlatformNotSupportedException("You OS is not supported");
+        
+        var dataProtectorProvider = DataProtectionProvider.Create(ApplicationData.Name);
         var dataProtector = dataProtectorProvider.CreateProtector(MacOsProtectionPurpose);
-
 
         var encrypted = dataProtector.Protect(buffer);
         stream.Write(encrypted, 0, encrypted.Length);
@@ -31,8 +35,8 @@ public static class Encryptor
 
     private static void EncryptOnWindows(byte[] buffer, Stream s)
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            throw new InvalidOperationException("You OS is not supported");
+        if (!OperatingSystem.IsWindows())
+            throw new PlatformNotSupportedException("You OS is not supported");
         
         ArgumentNullException.ThrowIfNull(buffer);
         ArgumentNullException.ThrowIfNull(s);
@@ -52,9 +56,9 @@ public static class Encryptor
     
     public static byte[] DecryptDataFromStream(Stream s)
     {
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        if (OperatingSystem.IsWindows())
             return DecryptOnWindows(s);
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+        if (OperatingSystem.IsMacOS())
             return DecryptOnOsx(s);
         
         throw new InvalidOperationException("You OS is not supported");
@@ -62,8 +66,10 @@ public static class Encryptor
 
     private static byte[] DecryptOnOsx(Stream stream)
     {
-        var dataProtectorProvider = DataProtectionProvider.Create(ApplicationName);
-
+        if (!OperatingSystem.IsMacOS())
+            throw new PlatformNotSupportedException("You OS is not supported");
+        
+        var dataProtectorProvider = DataProtectionProvider.Create(ApplicationData.Name);
         var dataProtector = dataProtectorProvider.CreateProtector(MacOsProtectionPurpose);
 
         var inBuffer = new byte[stream.Length];
@@ -83,8 +89,8 @@ public static class Encryptor
 
     private static byte[] DecryptOnWindows(Stream s)
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            throw new InvalidOperationException("You OS is not supported");
+        if (!OperatingSystem.IsWindows())
+            throw new PlatformNotSupportedException("You OS is not supported");
         
         ArgumentNullException.ThrowIfNull(s);
 

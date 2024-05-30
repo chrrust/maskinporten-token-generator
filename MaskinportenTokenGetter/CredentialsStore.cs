@@ -12,10 +12,11 @@ public static class CredentialsStore
     
     public static void Load()
     {
-        if (!File.Exists(CredentialsFileName))
+        var path = CredentialsPathProvider.GetCredentialsFilePath(CredentialsFileName);
+        if (!File.Exists(path))
             return;
 
-        using var fileStream = new FileStream(CredentialsFileName, FileMode.Open);
+        using var fileStream = new FileStream(path, FileMode.Open);
         var decryptedData = Encryptor.DecryptDataFromStream(fileStream);
         
         fileStream.Close();
@@ -32,7 +33,8 @@ public static class CredentialsStore
     public static void Save()
     {
         var data = JsonSerializer.SerializeToUtf8Bytes(Store);
-        using var fileStream = new FileStream(CredentialsFileName, FileMode.OpenOrCreate);
+        var path = CredentialsPathProvider.GetCredentialsFilePath(CredentialsFileName);
+        using var fileStream = new FileStream(path, FileMode.OpenOrCreate);
         Encryptor.EncryptDataToStream(data, fileStream);
         fileStream.Close();
     }
