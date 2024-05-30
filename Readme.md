@@ -1,11 +1,17 @@
 # MaskinportenTokenGetter
 
-This application can be used to create a MaskinportenToken.
+This is a simple tool to get a Maskinporten token or Altinn token. 
 
-Steps to create a token:
+## Installation MacOS
 
-1. Add user secrets for the client you want to use to create the Maskinporten token
-   1. `dotnet user-secrets set "ClientId" "<value>"`. This is the identifier (Integrasjonsid) for the Maskinporten client which is set up in samarbeidsportalen
-   2. `dotnet user-secrets set "EncodedJwk" "<value>"`. This should be the public and private keypair base64 encoded
-2. `dotnet build`
-3. `dotnet run`
+```bash
+dotnet publish -c Release -r osx-arm64 --self-contained --output ~/.token-getter
+```
+
+```bash
+sudo ln -s ~/.token-getter/token-getter /usr/local/bin/token-getter
+```
+
+```bash
+chmod +x /usr/local/bin/token-getter
+```
