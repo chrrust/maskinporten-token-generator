@@ -1,4 +1,6 @@
 ﻿using System.CommandLine;
+using System.CommandLine.Builder;
+using System.CommandLine.Parsing;
 using System.IdentityModel.Tokens.Jwt;
 using System.Net.Http.Headers;
 using System.Runtime.InteropServices;
@@ -6,6 +8,7 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.IdentityModel.Tokens;
 using Newtonsoft.Json.Linq;
 
@@ -80,7 +83,13 @@ credentialsCommand.AddCommand(listCredentialsCommand);
 
 rootCommand.AddCommand(credentialsCommand);
 
-rootCommand.Invoke(args);
+var commandLineBuilder = new CommandLineBuilder(rootCommand);
+
+commandLineBuilder.UseDefaults();
+
+var parser = commandLineBuilder.Build();
+
+await parser.InvokeAsync(args);
 
 if (credentialsStore.HasPendingChanges)
     credentialsStore.Save();
@@ -324,8 +333,31 @@ public class CredentialsStore
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             return DecryptOnWindows(s);
-
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            return DecryptOnOsx(s);
+        
         throw new InvalidOperationException("You OS is not supported");
+    }
+
+    private static byte[] DecryptOnOsx(Stream stream)
+    {
+        var dataProtectorProvider = DataProtectionProvider.Create("MaskinportenTokenGetter");
+
+        var dataProtector = dataProtectorProvider.CreateProtector("MacOS");
+
+        var inBuffer = new byte[stream.Length];
+
+        var length = inBuffer.Length;
+
+        if (!stream.CanRead)
+            throw new IOException("Could not read the stream.");
+        
+        var readBytesCount = stream.Read(inBuffer, 0, length);
+
+        if (readBytesCount != length)
+            throw new Exception("Failed to read the stream");
+
+        return dataProtector.Unprotect(inBuffer);
     }
 
     private static byte[] DecryptOnWindows(Stream s)
@@ -354,8 +386,20 @@ public class CredentialsStore
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             EncryptOnWindows(buffer, s);
-        
-        throw new InvalidOperationException("You OS is not supported");
+        else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            EncryptOnOsx(buffer, s);
+        else
+            throw new InvalidOperationException("You OS is not supported");
+    }
+
+    private static void EncryptOnOsx(byte[] buffer, Stream stream)
+    {
+        var dataProtectorProvider = DataProtectionProvider.Create("MaskinportenTokenGetter");
+        var dataProtector = dataProtectorProvider.CreateProtector("MacOS");
+
+
+        var encrypted = dataProtector.Protect(buffer);
+        stream.Write(encrypted, 0, encrypted.Length);
     }
 
     private static void EncryptOnWindows(byte[] buffer, Stream s)
@@ -381,3 +425,5 @@ public class CredentialsStore
 }
 
 public record CredentialSet(string Name, Guid ClientId, string EncodedJwk);
+
+
